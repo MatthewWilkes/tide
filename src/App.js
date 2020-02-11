@@ -93,13 +93,13 @@ class FileEditor extends React.Component {
   
   load(path) {
     var editor_type = this.editorForFile(this.state.filename);
-    if (editor_type) {
+    if (editor_type !== null) {
       // Only load the file if it's editable
       var cm = this.props.connection_manager.current;
       this.setState({fileOperationInProgress: true});
       cm.startAction();
       
-      var cmd = {"cmd": "read_bin", path: path};
+      var cmd = {"cmd": "read", path: path};
       usbConnection.send(cmd).then((response) => { let data = {}; data[path] = response.result; this.setState(data); 
         cm.completeAction();
         this.props.browser.current.markClean(path);
@@ -112,12 +112,13 @@ class FileEditor extends React.Component {
     var cm = this.props.connection_manager.current;
     cm.startAction();
     
-    usbConnection.send({"cmd": "read_bin", path: this.state.filename}).then((response) => {
+    usbConnection.getFile({"cmd": "read", path: this.state.filename}).then((response) => {
       cm.completeAction();
-      var blob = new Blob([response.bytes], {type: "application/octet-stream"});
+      var blob = new Blob(response.bytes);
       let parts = this.state.filename.split("/");
       console.log(parts);
-      console.log(response.bytes);
+      console.log("Response bytes " + response.bytes.length);
+      console.log("Blob bytes " + blob.length);
       saveAs(blob, parts[parts.length - 1]);
     });
   }
