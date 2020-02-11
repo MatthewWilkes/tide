@@ -37,6 +37,11 @@ badge.Connection.prototype.onReceive = function(data) {
     this.responses.forEach((response) => {
         try {
           var parsed = JSON.parse(response);
+          if (parsed.hasOwnProperty("hex")) {
+            parsed["bytes"] = new Int8Array(parsed["hex"]);
+            parsed["result"] = textDecoder.decode(parsed["bytes"]);
+            delete parsed["hex"];
+          }
           if (parsed.hasOwnProperty("command") && parsed["command"].hasOwnProperty("id")) {
               var id = parsed["command"]["id"];
               this.results[id] = parsed;

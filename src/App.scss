@@ -11,6 +11,23 @@
   }
 }
 
+li.selected {
+  background: #ddd;
+}
+
+li.changes {
+  font-style: italic;
+  font-weight: bold;
+  svg {
+    color: red;
+  }
+}
+
+.fileBrowser ul {
+  padding: 0;
+  list-style-position: inside;
+}
+
 .App-header {
   background-color: #282c34;
   min-height: 100vh;
