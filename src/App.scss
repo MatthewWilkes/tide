@@ -23,9 +23,14 @@ li.changes {
   }
 }
 
-.fileBrowser ul {
-  padding: 0;
-  list-style-position: inside;
+.filebrowser ul {
+  padding-left: 10px;
+  ul {
+    border-left: 2px solid grey;
+  }
+  li {
+    list-style: none;
+  }
 }
 
 .App-header {

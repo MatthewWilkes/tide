@@ -18,7 +18,7 @@ import Spinner from 'react-bootstrap/Spinner';
 import ProgressBar from 'react-bootstrap/ProgressBar';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExclamationCircle, faFile } from '@fortawesome/free-solid-svg-icons';
+import { faExclamationCircle, faFile, faFolder } from '@fortawesome/free-solid-svg-icons';
 import { faPython } from '@fortawesome/free-brands-svg-icons';
 import { saveAs } from 'file-saver';
 
@@ -88,16 +88,22 @@ class FileEditor extends React.Component {
     });
   }
   
-  editorForFile (filename) {
-    if (filename.indexOf(".py") != -1) {
+  editorForFile (path) {
+    let path_parts = path.split("/");
+    let filename = path_parts[path_parts.length - 1];
+    if (filename.endsWith(".py")) {
       return "python";
+    } else if (filename.endsWith(".json")) {
+      return "json";
+    } else if (filename == "version") {
+      return "text";
     } else {
       return null;
     }
   }
   
   load(path) {
-    var editor_type = this.editorForFile(this.state.filename);
+    var editor_type = this.editorForFile(path);
     var cm = this.props.connection_manager.current;
 
     cm.startAction();
@@ -111,6 +117,7 @@ class FileEditor extends React.Component {
       this.setState({fileOperationInProgress: true});
       cm.startAction();
       
+      console.log("Reading " + path + " for editor type " + editor_type);
       var cmd = {"cmd": "read", path: path};
       usbConnection.send(cmd).then((response) => { let data = {}; data[path] = response.result; this.setState(data); 
         cm.completeAction();
@@ -172,9 +179,9 @@ class FileEditor extends React.Component {
           wrapEnabled={true}
           value={ this.state[this.state.filename] }
           onChange={this.storeChanges}
-          enableBasicAutocompletion={true}
-          enableLiveAutocompletion={true}
-          enableSnippets={true}
+          enableBasicAutocompletion={editor_type == "python"}
+          enableLiveAutocompletion={editor_type == "python"}
+          enableSnippets={editor_type == "python"}
         />
         <ButtonToolbar aria-label="Toolbar with button groups">
           <ButtonGroup className="mr-2" aria-label="File operations">
@@ -274,6 +281,7 @@ class FileBrowser extends React.Component {
     this.state = {"tree": [], "dirty": []};
     this.getTree = this.getTree.bind(this);
     this.drawItems = this.drawItems.bind(this);
+    this.refresh = this.refresh.bind(this);
   }
   
   
@@ -342,22 +350,41 @@ class FileBrowser extends React.Component {
         let run = (evt) => {
           usbConnection.send({"cmd": "exec_app", app: item.filename});
         };
-        results.push(<li><strong>{ item.filename } <Button size="sm" onClick={run}>Run</Button> </strong><ul>{ children }</ul></li>);
+        results.push(<li><strong><FontAwesomeIcon icon={faFolder} /> { item.filename } <Button size="sm" onClick={run}>Run</Button> </strong>{ children }</li>);
       }
     };
     return <ul>{results}</ul>
   };
   
-  render() {
+  refresh = function (evt) {
+    this.getTree("/apps").then(files => {
+      this.setState({tree: files});
+    });
+  };
+  
+  render() {  
     console.log(this.state);
     return <div className="filebrowser">
       { this.drawItems(this.state.tree) }
-      <Button variant="danger" onClick={evt => {
-        this.getTree("/apps").then(files => {
-          this.setState({tree: files});
-        });
-      }}>Refresh</Button>
-      {this.state.dirty}
+      <Button variant="danger" onClick={this.refresh}>Refresh</Button>
+      <Button variant="success" onClick={async (evt) => {
+        var app_name = prompt("Name of app");
+        var exists = true;
+        try {
+          await usbConnection.send({"cmd": "stat", path: "/apps/"+app_name});
+        } catch (e) {
+          exists = false;
+        }
+
+        if (exists) {
+          alert("Application name already in use");
+        } else {
+          await usbConnection.send({"cmd": "mkdir", path: "/apps/"+app_name});
+          await usbConnection.send({"cmd": "write", path: "/apps/"+app_name+"/__init__.py", data: ""});
+          this.refresh(evt);
+        }
+      }}>New Application</Button>
+      
     </div>;
   }
 }
