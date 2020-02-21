@@ -7,23 +7,28 @@ import "ace-builds/src-noconflict/mode-python";
 import "ace-builds/src-noconflict/snippets/python";
 import "ace-builds/src-noconflict/theme-github";
 
-import Row from 'react-bootstrap/Row'
-import Container from 'react-bootstrap/Container'
-import Col from 'react-bootstrap/Col'
-import Navbar from 'react-bootstrap/Navbar'
-import Button from 'react-bootstrap/Button'
-import ButtonToolbar from 'react-bootstrap/ButtonToolbar'
-import ButtonGroup from 'react-bootstrap/ButtonGroup'
-import Spinner from 'react-bootstrap/Spinner'
+import Row from 'react-bootstrap/Row';
+import Container from 'react-bootstrap/Container';
+import Col from 'react-bootstrap/Col';
+import Navbar from 'react-bootstrap/Navbar';
+import Button from 'react-bootstrap/Button';
+import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
+import ButtonGroup from 'react-bootstrap/ButtonGroup';
+import Spinner from 'react-bootstrap/Spinner';
+import ProgressBar from 'react-bootstrap/ProgressBar';
 
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faExclamationCircle, faFile } from '@fortawesome/free-solid-svg-icons'
-import { faPython } from '@fortawesome/free-brands-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faExclamationCircle, faFile } from '@fortawesome/free-solid-svg-icons';
+import { faPython } from '@fortawesome/free-brands-svg-icons';
 import { saveAs } from 'file-saver';
 
 import { badge } from './connect.js';
 import './App.scss';
 import './custom-bootstrap.scss';
+
+import worker from './worker.js';
+import WebWorker from './WebWorker';
+
 
 
 
@@ -93,9 +98,16 @@ class FileEditor extends React.Component {
   
   load(path) {
     var editor_type = this.editorForFile(this.state.filename);
+    var cm = this.props.connection_manager.current;
+
+    cm.startAction();
+    usbConnection.send({"cmd": "stat", path: path}).then((response) => {
+        this.setState({"stat": response.result});
+        cm.completeAction();
+      });
+    
     if (editor_type !== null) {
       // Only load the file if it's editable
-      var cm = this.props.connection_manager.current;
       this.setState({fileOperationInProgress: true});
       cm.startAction();
       
@@ -111,20 +123,27 @@ class FileEditor extends React.Component {
   doDownload(evt) {
     var cm = this.props.connection_manager.current;
     cm.startAction();
+    var total_bytes = this.state.stat.size;
     
-    usbConnection.getFile({"cmd": "read", path: this.state.filename}).then((response) => {
+    var path_parts = this.state.filename.split("/");
+    usbConnection.getFile({"cmd": "read", path: this.state.filename}, (bytes_downloaded) => {
+      this.setState({"progress": (bytes_downloaded/total_bytes*100)});
+    }).then((response) => {
       cm.completeAction();
       var blob = new Blob(response.bytes);
-      let parts = this.state.filename.split("/");
-      console.log(parts);
       console.log("Response bytes " + response.bytes.length);
       console.log("Blob bytes " + blob.length);
-      saveAs(blob, parts[parts.length - 1]);
+      saveAs(blob, path_parts[path_parts.length - 1]);
+      this.setState({"progress": 0});
     });
   }
 
   render() {
     var editor_type = this.editorForFile(this.state.filename);
+    let downloading = <div className="BtnProgress" />;
+    if (this.state.progress) {
+      downloading = <ProgressBar className="BtnProgress" now={this.state.progress} label={Math.round(this.state.progress) + '%'} />
+    }
     if (this.state.filename == "") {
       var editor = <div className="p-3">
           <h2>No file selected</h2>
@@ -136,7 +155,9 @@ class FileEditor extends React.Component {
         <h2>Download</h2>
         <p>The file <kbd>{this.state.filename}</kbd> cannot be edited online</p>
         
-        <Button variant="warning" onClick={ this.doDownload }>Download</Button>
+        <Button variant="warning" onClick={ this.doDownload }>Download<br/>
+        { downloading }
+        </Button>
         </div>
     } else {
       var editor = <div>
@@ -208,11 +229,17 @@ class Connection extends React.Component {
     badge.connect().then((conn) => { 
       // Open interface
       conn.onError = this.on_error;
+      conn.receive_worker = new WebWorker(worker);
+      conn.receive_worker.onmessage = conn.receive_message;
       conn.connect();
       return conn;
     }).then((active) => {
       // Mark as ready
         this.setState({connected: true});
+        
+        console.log(this.receive_worker);
+
+        
         usbConnection = active;
         this.completeAction();
 
