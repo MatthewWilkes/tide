@@ -27,6 +27,9 @@ li.changes {
   padding-left: 10px;
   ul {
     border-left: 2px solid grey;
+    &.dragging {
+      border-left: 2px solid lime;
+    }
   }
   li {
     list-style: none;
