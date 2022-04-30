@@ -4,6 +4,7 @@ import AceEditor from "react-ace";
 
 import "ace-builds/src-min-noconflict/ext-language_tools";
 import "ace-builds/src-noconflict/mode-python";
+import "ace-builds/src-noconflict/mode-json";
 import "ace-builds/src-noconflict/snippets/python";
 import "ace-builds/src-noconflict/theme-github";
 
@@ -16,6 +17,7 @@ import ButtonToolbar from 'react-bootstrap/ButtonToolbar';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Spinner from 'react-bootstrap/Spinner';
 import ProgressBar from 'react-bootstrap/ProgressBar';
+
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExclamationCircle, faFile, faFolder } from '@fortawesome/free-solid-svg-icons';
@@ -301,6 +303,9 @@ class FileBrowser extends React.Component {
   
   async getTree(path) {
     var files = [];
+    return [
+      {"path": "/", "filename": "foo", "children": []}
+    ]
     try {
       this.props.connection_manager.current.startAction();
       var items = await usbConnection.send({"cmd": "lsdir", path: path});
@@ -333,8 +338,36 @@ class FileBrowser extends React.Component {
     }
   }
   
+  dragStart(evt) {
+    evt.currentTarget.classList.add("dragging");
+    evt.preventDefault();
+  }
+
+  dragEnd(evt) {
+    evt.currentTarget.classList.remove("dragging");
+  }
+
   drawItems(items) {
-    var results = []
+    var results = [];
+    let upload = function(evt) {
+      console.log(evt);
+      
+    if (evt.dataTransfer.items) {
+      // Use DataTransferItemList interface to access the file(s)
+      for (var i = 0; i < evt.dataTransfer.items.length; i++) {
+        // If dropped items aren't files, reject them
+        if (evt.dataTransfer.items[i].kind === 'file') {
+          var file = evt.dataTransfer.items[i].getAsFile();
+          console.log('... file[' + i + '].name = ' + file.name);
+        }
+      }
+    }
+      
+      evt.preventDefault();
+      return false;
+    }
+    
+  
     for (var i = 0; i < items.length; i++) {
       let item = items[i];
       if (item.children == null) {
@@ -350,10 +383,12 @@ class FileBrowser extends React.Component {
         let run = (evt) => {
           usbConnection.send({"cmd": "exec_app", app: item.filename});
         };
-        results.push(<li><strong><FontAwesomeIcon icon={faFolder} /> { item.filename } <Button size="sm" onClick={run}>Run</Button> </strong>{ children }</li>);
+        results.push(<li><strong><FontAwesomeIcon icon={faFolder} /> { item.filename } <Button size="sm" onClick={run}>Run</Button> </strong>
+        { children }
+        </li>);
       }
     };
-    return <ul>{results}</ul>
+    return <ul onDrop={ upload } onDragOver={ this.dragStart } onDragLeave={ this.dragEnd }>{results}</ul>
   };
   
   refresh = function (evt) {
